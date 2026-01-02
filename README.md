@@ -1,2 +1,2 @@
 # suika-game
-スイカゲーム。本家はこちら
+スイカゲーム。本家は[こちら](https://suikagame.jp/)
