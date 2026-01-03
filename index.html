@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="ja">
+<meta charset="UTF-8">
+<title>Suika Game</title>
+<style>
+body { margin:0; overflow:hidden; display:flex; justify-content:center; align-items:center; height:100vh; background:#87ceeb; }
+#game-container { position:relative; }
+canvas { display:block; }
+#gameOver { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); font-size:48px; color:red; display:none; }
+#nextFruit { position:absolute; top:10px; left:50%; transform:translateX(-50%); font-size:24px; color:black; background:white; padding:4px 8px; border-radius:4px; }
+</style>
+<body>
+<div id="game-container">
+  <div id="gameOver">GAME OVER</div>
+  <div id="nextFruit"></div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/matter-js@0.19.0/build/matter.min.js"></script>
+<script>
+const { Engine, Render, Runner, Bodies, Composite, Events, Body, Vector } = Matter;
+
+const engine = Engine.create();
+const world = engine.world;
+world.gravity.y = 1.2;
+
+const width = 400;
+const height = 600;
+
+const render = Render.create({
+  element: document.getElementById('game-container'),
+  engine: engine,
+  options: { width, height, wireframes: false, background: '#87ceeb' }
+});
+Render.run(render);
+const runner = Runner.create();
+Runner.run(runner, engine);
+
+const wallThickness = 20;
+const boxWidth = 200;
+const boxHeight = 400;
+const centerX = width/2;
+const centerY = height/2;
+
+const leftWall = Bodies.rectangle(centerX - boxWidth/2, centerY, wallThickness, boxHeight, { isStatic:true, render:{fillStyle:'#000'} });
+const rightWall = Bodies.rectangle(centerX + boxWidth/2, centerY, wallThickness, boxHeight, { isStatic:true, render:{fillStyle:'#000'} });
+const floor = Bodies.rectangle(centerX, centerY + boxHeight/2, boxWidth, wallThickness, { isStatic:true, render:{fillStyle:'#000'} });
+Composite.add(world,[leftWall,rightWall,floor]);
+
+const cloudY = centerY - boxHeight/2 - 30;
+let cloudX = centerX;
+const cloudWidth = 60;
+const cloudHeight = 20;
+const cloud = Bodies.rectangle(cloudX, cloudY, cloudWidth, cloudHeight, { isStatic:true, render:{fillStyle:'#ffffff'} });
+Composite.add(world, cloud);
+
+const fruitsList = ['さくらんぼ','いちご','ぶどう','デコポン','かき','りんご','なし','もも','パイナップル','メロン','スイカ'];
+const fruitColors = ['#ff0000','#ff6666','#9900cc','#ffcc33','#ff6600','#ff0000','#ffff99','#ff99cc','#ffcc00','#ccff66','#00cc00'];
+const fruitSizes = [20,22,24,26,28,30,32,34,36,38,40];
+let fruits = [];
+let gameOver = false;
+
+let nextFruitIndex = getRandomFruitIndex();
+document.getElementById('nextFruit').innerText = "Next: " + fruitsList[nextFruitIndex];
+
+function getRandomFruitIndex(){
+  const total = fruits.length;
+  if(total < 5) return Math.floor(Math.random()*2);
+  if(total < 10) return 2 + Math.floor(Math.random()*3);
+  return 4 + Math.floor(Math.random()*7);
+}
+
+function dropFruit(){
+  if(gameOver) return;
+  const idx = nextFruitIndex;
+  const startY = centerY - boxHeight/2 + fruitSizes[idx]/2 + 2;
+  const x = Math.max(centerX - boxWidth/2 + fruitSizes[idx]/2, Math.min(cloud.position.x, centerX + boxWidth/2 - fruitSizes[idx]/2));
+  
+  const fruit = Bodies.circle(x, startY, fruitSizes[idx]/2, {
+    restitution:0.2,
+    friction:0.01,
+    render:{fillStyle: fruitColors[idx]}
+  });
+  fruit.custom = { idx };
+  fruits.push(fruit);
+  Composite.add(world, fruit);
+
+  nextFruitIndex = getRandomFruitIndex();
+  document.getElementById('nextFruit').innerText = "Next: " + fruitsList[nextFruitIndex];
+}
+
+Events.on(engine, 'afterUpdate', ()=>{
+  if(gameOver) return;
+
+  for(let i=0;i<fruits.length;i++){
+    for(let j=i+1;j<fruits.length;j++){
+      const a = fruits[i];
+      const b = fruits[j];
+      if(a.custom.idx === b.custom.idx){
+        const dist = Vector.magnitude(Vector.sub(a.position,b.position));
+        const combinedSize = fruitSizes[a.custom.idx];
+        if(dist < combinedSize){
+          const newIdx = Math.min(a.custom.idx+1, fruitsList.length-1);
+          const scale = fruitSizes[newIdx]/fruitSizes[a.custom.idx];
+          a.custom.idx = newIdx;
+          a.render.fillStyle = fruitColors[newIdx];
+          Body.scale(a, scale, scale);
+          Composite.remove(world,b);
+          fruits.splice(j,1);
+          j--;
+        }
+      }
+    }
+  }
+
+  const topLimit = centerY - boxHeight/2;
+  for(let f of fruits){
+    if(f.position.y + fruitSizes[f.custom.idx]/2 < topLimit){
+      gameOver = true;
+      document.getElementById('gameOver').style.display='block';
+    }
+  }
+});
+
+document.addEventListener('mousemove', e=>{
+  const rect = render.canvas.getBoundingClientRect();
+  cloudX = e.clientX - rect.left;
+  Body.setPosition(cloud,{
+    x: Math.max(centerX - boxWidth/2 + cloudWidth/2, Math.min(cloudX, centerX + boxWidth/2 - cloudWidth/2)), 
+    y: cloudY
+  });
+});
+
+document.addEventListener('click', dropFruit);
+</script>
+</body>
+</html>
